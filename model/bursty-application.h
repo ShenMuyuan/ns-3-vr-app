@@ -120,6 +120,12 @@ public:
    */
   uint64_t GetTotalTxBytes (void) const;
 
+  /**
+ * \brief Query the priority value of this socket
+ * \return The priority value
+ */
+  uint8_t GetPriority() const;
+
 protected:
   virtual void DoDispose (void);
 
@@ -127,6 +133,12 @@ private:
   // inherited from Application base class.
   virtual void StartApplication (void); // Called at time specified by Start
   virtual void StopApplication (void); // Called at time specified by Stop
+
+  /**
+ * \brief Manually set the socket priority
+ * \param priority The socket priority (in the range 0..6)
+ */
+  void SetPriority(uint8_t priority);
 
   //helpers
   /**
@@ -169,6 +181,7 @@ private:
   void ConnectionFailed (Ptr<Socket> socket);
 
   Ptr<Socket> m_socket; //!< Associated socket
+  uint8_t m_priority;    //!< Priority of the sent packets
   Address m_peer; //!< Peer address
   Address m_local; //!< Local address to bind to
   bool m_connected; //!< True if connected
@@ -179,6 +192,11 @@ private:
   uint64_t m_totTxBursts; //!< Total bursts sent
   uint64_t m_totTxFragments; //!< Total fragments sent
   uint64_t m_totTxBytes; //!< Total bytes sent
+
+  // Use another TID (priority), which is optional
+  Ptr<UniformRandomVariable> m_uniformRngForTid;
+  uint8_t m_optionalTid;
+  double m_optionalTidPr;
 
   // Traced Callbacks
   /// Callback for transmitted burst

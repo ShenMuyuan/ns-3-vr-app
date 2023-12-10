@@ -37,6 +37,8 @@
 #include "ns3/boolean.h"
 #include "ns3/burst-generator.h"
 #include "bursty-application.h"
+#include "ns3/uinteger.h"
+#include "ns3/double.h"
 
 namespace ns3 {
 
@@ -79,7 +81,22 @@ BurstyApplication::GetTypeId (void)
     .AddTraceSource ("BurstTx", "A burst of packet is created and sent",
                      MakeTraceSourceAccessor (&BurstyApplication::m_txBurstTrace),
                      "ns3::BurstSink::SeqTsSizeFragCallback")
-  ;
+    .AddAttribute("Priority",
+                  "Priority assigned to the packets generated.",
+                  UintegerValue(0),
+                  MakeUintegerAccessor(&BurstyApplication::SetPriority,
+                                       &BurstyApplication::GetPriority),
+                  MakeUintegerChecker<uint8_t>())
+    .AddAttribute("OptionalTid", "The another TID (priority). If it is different "
+                                 "from m_priority, then the client has a chance to use it.",
+                  UintegerValue(0),
+                  MakeUintegerAccessor(&BurstyApplication::m_optionalTid),
+                  MakeUintegerChecker<uint32_t>(0, 7))
+    .AddAttribute("OptionalTidPr",
+                  "Probability to use the optional TID",
+                  DoubleValue(0.5),
+                  MakeDoubleAccessor(&BurstyApplication::m_optionalTidPr),
+                  MakeDoubleChecker<double>(0.0, 1.0));
   return tid;
 }
 
@@ -87,6 +104,9 @@ BurstyApplication::BurstyApplication ()
     : m_socket (0), m_connected (false), m_totTxBursts (0), m_totTxFragments (0), m_totTxBytes (0)
 {
   NS_LOG_FUNCTION (this);
+  m_uniformRngForTid = CreateObject<UniformRandomVariable> ();
+  m_uniformRngForTid->SetAttribute("Min", DoubleValue (0.0));
+  m_uniformRngForTid->SetAttribute("Max", DoubleValue (1.0));
 }
 
 BurstyApplication::~BurstyApplication ()
@@ -118,6 +138,22 @@ BurstyApplication::DoDispose (void)
 
   // chain up
   Application::DoDispose ();
+}
+
+void
+BurstyApplication::SetPriority(uint8_t priority)
+{
+  m_priority = priority;
+  if (m_socket)
+  {
+    m_socket->SetPriority(priority);
+  }
+}
+
+uint8_t
+BurstyApplication::GetPriority() const
+{
+  return m_priority;
 }
 
 void
@@ -164,6 +200,11 @@ BurstyApplication::StartApplication ()
 
       m_socket->SetConnectCallback (MakeCallback (&BurstyApplication::ConnectionSucceeded, this),
                                     MakeCallback (&BurstyApplication::ConnectionFailed, this));
+
+      if (m_priority)
+      {
+        m_socket->SetPriority(m_priority);
+      }
     }
 
   // Ensure no pending event
@@ -201,6 +242,22 @@ BurstyApplication::SendBurst ()
 {
   NS_LOG_FUNCTION (this);
   NS_ASSERT (m_nextBurstEvent.IsExpired ());
+
+  // bursts can have different TID; fragments
+  if (m_optionalTid != m_priority)
+  {
+    // can give the optional TID a try, e.g., set the socket's priority
+    if (m_uniformRngForTid->GetValue() < m_optionalTidPr)
+    {
+      // use the optional TID
+      m_socket->SetPriority(m_optionalTid);
+    }
+    else
+    {
+      // use the original TID
+      m_socket->SetPriority(m_priority);
+    }
+  }
 
   // get burst info
   uint32_t burstSize = 0;
