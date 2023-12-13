@@ -192,9 +192,19 @@ private:
     size_t
     operator() (const Address &x) const
     {
-      NS_ABORT_IF (!InetSocketAddress::IsMatchingType (x));
-      InetSocketAddress a = InetSocketAddress::ConvertFrom (x);
-      return std::hash<uint32_t> () (a.GetIpv4 ().Get ());
+//      NS_ABORT_IF (!InetSocketAddress::IsMatchingType (x));
+        if (InetSocketAddress::IsMatchingType (x))
+        {
+            InetSocketAddress a = InetSocketAddress::ConvertFrom (x);
+            return std::hash<uint32_t> () (a.GetIpv4 ().Get ());
+        }
+        else
+        {
+          uint8_t buffer[Address::MAX_SIZE];
+          x.CopyTo(buffer);
+          std::string s(buffer, buffer + Address::MAX_SIZE);
+          return std::hash<std::string>{}(s);
+        }
     }
   };
 
